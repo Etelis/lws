@@ -103,6 +103,10 @@ const (
 	// Enables feature where the group will be restarted after pod failure if and only if
 	// all pods in the group are not pending
 	RecreateGroupAfterStartAnnotationKey string = "leaderworkerset.sigs.k8s.io/experimental-recreate-group-after-start"
+
+	// Enables growing leaderWorkerTemplate.size on a running group instead of
+	// recreating it. Only scale up is supported.
+	InPlaceResizeAnnotationKey string = "leaderworkerset.sigs.k8s.io/experimental-in-place-resize"
 )
 
 // One group consists of a single leader and M workers, and the total number of pods in a group is M+1.

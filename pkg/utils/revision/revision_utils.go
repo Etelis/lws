@@ -289,6 +289,9 @@ func getPatch(lws *leaderworkerset.LeaderWorkerSet) ([]byte, error) {
 	networkConfig := spec["networkConfig"].(map[string]interface{})
 	specCopy["networkConfig"] = networkConfig
 	template := spec["leaderWorkerTemplate"].(map[string]interface{})
+	if lws.Annotations[leaderworkerset.InPlaceResizeAnnotationKey] == "true" {
+		delete(template, "size")
+	}
 	specCopy["leaderWorkerTemplate"] = template
 	networkConfig["$patch"] = "replace"
 	template["$patch"] = "replace"
