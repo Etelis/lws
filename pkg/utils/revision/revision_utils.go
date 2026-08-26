@@ -180,6 +180,10 @@ func ApplyRevision(lws *leaderworkerset.LeaderWorkerSet, revision *appsv1.Contro
 	if err = json.Unmarshal(patched, restoredLws); err != nil {
 		return nil, err
 	}
+	// Size is not revisioned when in-place resize is enabled, so it is always taken live.
+	if restoredLws.Spec.LeaderWorkerTemplate.Size == nil {
+		restoredLws.Spec.LeaderWorkerTemplate.Size = lws.Spec.LeaderWorkerTemplate.Size
+	}
 	return restoredLws, nil
 }
 
