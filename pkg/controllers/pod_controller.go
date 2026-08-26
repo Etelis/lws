@@ -411,6 +411,9 @@ func (r *PodReconciler) growWorkerStatefulSet(ctx context.Context, sts *appsv1.S
 		sts.Spec.Template.Annotations[leaderworkerset.SizeAnnotationKey] = strconv.Itoa(int(size))
 		return r.Patch(ctx, sts, patch)
 	}
+	if sts.Status.ObservedGeneration < sts.Generation || sts.Status.UpdateRevision == sts.Status.CurrentRevision {
+		return nil
+	}
 	sts.Spec.Replicas = &want
 	return r.Patch(ctx, sts, patch)
 }
