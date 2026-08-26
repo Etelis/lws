@@ -387,6 +387,16 @@ func (r *LeaderWorkerSetReconciler) SSAWithStatefulset(ctx context.Context, lws 
 		log.Error(err, "Constructing StatefulSet apply configuration.")
 		return err
 	}
+	if lws.Annotations[leaderworkerset.InPlaceResizeAnnotationKey] == "true" {
+		// A changed size annotation would roll the leaders, so an existing group keeps
+		// the size it was created with. Running ranks learn the new size from the workload.
+		var existing appsv1.StatefulSet
+		if getErr := r.Get(ctx, types.NamespacedName{Name: lws.Name, Namespace: lws.Namespace}, &existing); getErr == nil {
+			if size, ok := existing.Spec.Template.Annotations[leaderworkerset.SizeAnnotationKey]; ok {
+				leaderStatefulSetApplyConfig.Spec.Template.Annotations[leaderworkerset.SizeAnnotationKey] = size
+			}
+		}
+	}
 	if err := setControllerReferenceWithStatefulSet(lws, leaderStatefulSetApplyConfig, r.Scheme); err != nil {
 		log.Error(err, "Setting controller reference.")
 		return err

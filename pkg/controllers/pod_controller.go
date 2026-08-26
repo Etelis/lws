@@ -37,7 +37,9 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	leaderworkerset "sigs.k8s.io/lws/api/leaderworkerset/v1"
 	"sigs.k8s.io/lws/pkg/schedulerprovider"
@@ -196,6 +198,10 @@ func (r *PodReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 			return ctrl.Result{}, client.IgnoreAlreadyExists(err)
 		}
 		r.Record.Eventf(&leaderWorkerSet, &pod, corev1.EventTypeNormal, GroupsProgressing, Create, fmt.Sprintf("Created worker statefulset for leader pod %s", pod.Name))
+	} else if leaderWorkerSet.Annotations[leaderworkerset.InPlaceResizeAnnotationKey] == "true" {
+		if err := r.growWorkerStatefulSet(ctx, &workerSts, *leaderWorkerSet.Spec.LeaderWorkerTemplate.Size); err != nil {
+			return ctrl.Result{}, err
+		}
 	}
 	log.V(2).Info("Worker Reconcile completed.")
 	return ctrl.Result{}, nil
@@ -378,6 +384,40 @@ func setControllerReferenceWithStatefulSet(owner metav1.Object, sts *appsapplyv1
 }
 
 // constructWorkerStatefulSetApplyConfiguration constructs the applied configuration for the leader StatefulSet
+// growWorkerStatefulSet raises an existing group's worker count. The update partition
+// holds running workers on their current template, so only the added ordinals are
+// created with the new group size.
+func (r *PodReconciler) growWorkerStatefulSet(ctx context.Context, sts *appsv1.StatefulSet, size int32) error {
+	var have int32
+	if sts.Spec.Replicas != nil {
+		have = *sts.Spec.Replicas
+	}
+	want := size - 1
+	if want <= have {
+		return nil
+	}
+	patch := client.MergeFrom(sts.DeepCopy())
+	if sts.Spec.Template.Annotations == nil {
+		sts.Spec.Template.Annotations = map[string]string{}
+	}
+	// The template must carry the new size before the added ordinals exist, otherwise
+	// they are created from the previous revision. Replicas are raised on the next pass.
+	if sts.Spec.Template.Annotations[leaderworkerset.SizeAnnotationKey] != strconv.Itoa(int(size)) {
+		partition := have + 1
+		sts.Spec.UpdateStrategy = appsv1.StatefulSetUpdateStrategy{
+			Type:          appsv1.RollingUpdateStatefulSetStrategyType,
+			RollingUpdate: &appsv1.RollingUpdateStatefulSetStrategy{Partition: &partition},
+		}
+		sts.Spec.Template.Annotations[leaderworkerset.SizeAnnotationKey] = strconv.Itoa(int(size))
+		return r.Patch(ctx, sts, patch)
+	}
+	if sts.Status.ObservedGeneration < sts.Generation || sts.Status.UpdateRevision == sts.Status.CurrentRevision {
+		return nil
+	}
+	sts.Spec.Replicas = &want
+	return r.Patch(ctx, sts, patch)
+}
+
 func constructWorkerStatefulSetApplyConfiguration(leaderPod corev1.Pod, lws leaderworkerset.LeaderWorkerSet, currentRevision *appsv1.ControllerRevision) (*appsapplyv1.StatefulSetApplyConfiguration, error) {
 	currentLws, err := revisionutils.ApplyRevision(&lws, currentRevision)
 	if err != nil {
@@ -473,6 +513,34 @@ func (r *PodReconciler) SetupWithManager(mgr ctrl.Manager) error {
 				_, exist := statefulSet.Labels[leaderworkerset.SetNameLabelKey]
 				return exist
 			}
+			if _, ok := object.(*leaderworkerset.LeaderWorkerSet); ok {
+				return true
+			}
 			return false
-		})).Owns(&appsv1.StatefulSet{}).Complete(r)
+		})).Owns(&appsv1.StatefulSet{}).
+		Watches(&leaderworkerset.LeaderWorkerSet{}, handler.EnqueueRequestsFromMapFunc(r.leaderPodsForSet)).
+		Complete(r)
+}
+
+// leaderPodsForSet requeues a group's leader pod so an in-place size change is applied
+// to the worker statefulset it owns.
+func (r *PodReconciler) leaderPodsForSet(ctx context.Context, obj client.Object) []reconcile.Request {
+	lws, ok := obj.(*leaderworkerset.LeaderWorkerSet)
+	if !ok || lws.Annotations[leaderworkerset.InPlaceResizeAnnotationKey] != "true" {
+		return nil
+	}
+	var pods corev1.PodList
+	if err := r.List(ctx, &pods, client.InNamespace(lws.Namespace), client.MatchingLabels{
+		leaderworkerset.SetNameLabelKey:     lws.Name,
+		leaderworkerset.WorkerIndexLabelKey: "0",
+	}); err != nil {
+		return nil
+	}
+	requests := make([]reconcile.Request, 0, len(pods.Items))
+	for i := range pods.Items {
+		requests = append(requests, reconcile.Request{NamespacedName: types.NamespacedName{
+			Name: pods.Items[i].Name, Namespace: pods.Items[i].Namespace,
+		}})
+	}
+	return requests
 }

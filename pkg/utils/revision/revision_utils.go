@@ -180,6 +180,10 @@ func ApplyRevision(lws *leaderworkerset.LeaderWorkerSet, revision *appsv1.Contro
 	if err = json.Unmarshal(patched, restoredLws); err != nil {
 		return nil, err
 	}
+	// Size is not revisioned when in-place resize is enabled, so it is always taken live.
+	if restoredLws.Spec.LeaderWorkerTemplate.Size == nil {
+		restoredLws.Spec.LeaderWorkerTemplate.Size = lws.Spec.LeaderWorkerTemplate.Size
+	}
 	return restoredLws, nil
 }
 
@@ -289,6 +293,9 @@ func getPatch(lws *leaderworkerset.LeaderWorkerSet) ([]byte, error) {
 	networkConfig := spec["networkConfig"].(map[string]interface{})
 	specCopy["networkConfig"] = networkConfig
 	template := spec["leaderWorkerTemplate"].(map[string]interface{})
+	if lws.Annotations[leaderworkerset.InPlaceResizeAnnotationKey] == "true" {
+		delete(template, "size")
+	}
 	specCopy["leaderWorkerTemplate"] = template
 	networkConfig["$patch"] = "replace"
 	template["$patch"] = "replace"
