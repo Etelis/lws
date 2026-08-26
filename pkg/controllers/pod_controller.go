@@ -37,7 +37,9 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	leaderworkerset "sigs.k8s.io/lws/api/leaderworkerset/v1"
 	"sigs.k8s.io/lws/pkg/schedulerprovider"
@@ -503,6 +505,34 @@ func (r *PodReconciler) SetupWithManager(mgr ctrl.Manager) error {
 				_, exist := statefulSet.Labels[leaderworkerset.SetNameLabelKey]
 				return exist
 			}
+			if _, ok := object.(*leaderworkerset.LeaderWorkerSet); ok {
+				return true
+			}
 			return false
-		})).Owns(&appsv1.StatefulSet{}).Complete(r)
+		})).Owns(&appsv1.StatefulSet{}).
+		Watches(&leaderworkerset.LeaderWorkerSet{}, handler.EnqueueRequestsFromMapFunc(r.leaderPodsForSet)).
+		Complete(r)
+}
+
+// leaderPodsForSet requeues a group's leader pod so an in-place size change is applied
+// to the worker statefulset it owns.
+func (r *PodReconciler) leaderPodsForSet(ctx context.Context, obj client.Object) []reconcile.Request {
+	lws, ok := obj.(*leaderworkerset.LeaderWorkerSet)
+	if !ok || lws.Annotations[leaderworkerset.InPlaceResizeAnnotationKey] != "true" {
+		return nil
+	}
+	var pods corev1.PodList
+	if err := r.List(ctx, &pods, client.InNamespace(lws.Namespace), client.MatchingLabels{
+		leaderworkerset.SetNameLabelKey:     lws.Name,
+		leaderworkerset.WorkerIndexLabelKey: "0",
+	}); err != nil {
+		return nil
+	}
+	requests := make([]reconcile.Request, 0, len(pods.Items))
+	for i := range pods.Items {
+		requests = append(requests, reconcile.Request{NamespacedName: types.NamespacedName{
+			Name: pods.Items[i].Name, Namespace: pods.Items[i].Namespace,
+		}})
+	}
+	return requests
 }
