@@ -10,12 +10,12 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
-      path: /mutate-leaderworkerset-x-k8s-io-v1-leaderworkerset
+      path: /mutate-lwselastic-x-k8s-io-v1-leaderworkerset
   failurePolicy: Fail
   name: mleaderworkerset.kb.io
   rules:
   - apiGroups:
-    - leaderworkerset.x-k8s.io
+    - lwselastic.x-k8s.io
     apiVersions:
     - v1
     operations:
@@ -55,12 +55,12 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
-      path: /validate-leaderworkerset-x-k8s-io-v1-leaderworkerset
+      path: /validate-lwselastic-x-k8s-io-v1-leaderworkerset
   failurePolicy: Fail
   name: vleaderworkerset.kb.io
   rules:
   - apiGroups:
-    - leaderworkerset.x-k8s.io
+    - lwselastic.x-k8s.io
     apiVersions:
     - v1
     operations:

@@ -15,6 +15,6 @@ limitations under the License.
 */
 
 // +kubebuilder:object:generate=true
-// +groupName=leaderworkerset.x-k8s.io
+// +groupName=lwselastic.x-k8s.io
 
 package v1

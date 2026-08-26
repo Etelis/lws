@@ -97,9 +97,9 @@ func NewLeaderWorkerSetReconciler(client client.Client, scheme *runtime.Scheme, 
 
 //+kubebuilder:rbac:groups="",resources=events,verbs=create;watch;update;patch;get;list
 //+kubebuilder:rbac:groups=events.k8s.io,resources=events,verbs=create;watch;update;patch;get;list
-//+kubebuilder:rbac:groups=leaderworkerset.x-k8s.io,resources=leaderworkersets,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=leaderworkerset.x-k8s.io,resources=leaderworkersets/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=leaderworkerset.x-k8s.io,resources=leaderworkersets/finalizers,verbs=update
+//+kubebuilder:rbac:groups=lwselastic.x-k8s.io,resources=leaderworkersets,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=lwselastic.x-k8s.io,resources=leaderworkersets/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=lwselastic.x-k8s.io,resources=leaderworkersets/finalizers,verbs=update
 //+kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=apps,resources=statefulsets/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=apps,resources=statefulsets/finalizers,verbs=update

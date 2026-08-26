@@ -16,7 +16,7 @@ limitations under the License.
 
 // Package v1 contains API Schema definitions for the leaderworkerset v1 API group
 // +kubebuilder:object:generate=true
-// +groupName=leaderworkerset.x-k8s.io
+// +groupName=lwselastic.x-k8s.io
 package v1
 
 import (
@@ -26,7 +26,7 @@ import (
 
 var (
 	// GroupVersion is group version used to register these objects
-	GroupVersion = schema.GroupVersion{Group: "leaderworkerset.x-k8s.io", Version: "v1"}
+	GroupVersion = schema.GroupVersion{Group: "lwselastic.x-k8s.io", Version: "v1"}
 
 	// SchemeGroupVersion is alias to GroupVersion for client-go libraries.
 	// It is required by pkg/client/informers/externalversions/...

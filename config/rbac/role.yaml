@@ -122,7 +122,7 @@ rules:
   verbs:
   - update
 - apiGroups:
-  - leaderworkerset.x-k8s.io
+  - lwselastic.x-k8s.io
   resources:
   - leaderworkersets
   verbs:
@@ -134,13 +134,13 @@ rules:
   - update
   - watch
 - apiGroups:
-  - leaderworkerset.x-k8s.io
+  - lwselastic.x-k8s.io
   resources:
   - leaderworkersets/finalizers
   verbs:
   - update
 - apiGroups:
-  - leaderworkerset.x-k8s.io
+  - lwselastic.x-k8s.io
   resources:
   - leaderworkersets/status
   verbs:
