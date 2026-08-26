@@ -396,17 +396,22 @@ func (r *PodReconciler) growWorkerStatefulSet(ctx context.Context, sts *appsv1.S
 	if want <= have {
 		return nil
 	}
-	partition := have + 1
 	patch := client.MergeFrom(sts.DeepCopy())
-	sts.Spec.Replicas = &want
-	sts.Spec.UpdateStrategy = appsv1.StatefulSetUpdateStrategy{
-		Type:          appsv1.RollingUpdateStatefulSetStrategyType,
-		RollingUpdate: &appsv1.RollingUpdateStatefulSetStrategy{Partition: &partition},
-	}
 	if sts.Spec.Template.Annotations == nil {
 		sts.Spec.Template.Annotations = map[string]string{}
 	}
-	sts.Spec.Template.Annotations[leaderworkerset.SizeAnnotationKey] = strconv.Itoa(int(size))
+	// The template must carry the new size before the added ordinals exist, otherwise
+	// they are created from the previous revision. Replicas are raised on the next pass.
+	if sts.Spec.Template.Annotations[leaderworkerset.SizeAnnotationKey] != strconv.Itoa(int(size)) {
+		partition := have + 1
+		sts.Spec.UpdateStrategy = appsv1.StatefulSetUpdateStrategy{
+			Type:          appsv1.RollingUpdateStatefulSetStrategyType,
+			RollingUpdate: &appsv1.RollingUpdateStatefulSetStrategy{Partition: &partition},
+		}
+		sts.Spec.Template.Annotations[leaderworkerset.SizeAnnotationKey] = strconv.Itoa(int(size))
+		return r.Patch(ctx, sts, patch)
+	}
+	sts.Spec.Replicas = &want
 	return r.Patch(ctx, sts, patch)
 }
 
