@@ -384,7 +384,7 @@ func setControllerReferenceWithStatefulSet(owner metav1.Object, sts *appsapplyv1
 }
 
 // constructWorkerStatefulSetApplyConfiguration constructs the applied configuration for the leader StatefulSet
-// growWorkerStatefulSet raises an existing group's worker count. The update partition
+// growWorkerStatefulSet changes an existing group's worker count in place. The update partition
 // holds running workers on their current template, so only the added ordinals are
 // created with the new group size.
 func (r *PodReconciler) growWorkerStatefulSet(ctx context.Context, sts *appsv1.StatefulSet, size int32) error {
@@ -393,10 +393,24 @@ func (r *PodReconciler) growWorkerStatefulSet(ctx context.Context, sts *appsv1.S
 		have = *sts.Spec.Replicas
 	}
 	want := size - 1
-	if want <= have {
+	if want == have {
 		return nil
 	}
 	patch := client.MergeFrom(sts.DeepCopy())
+	if want < have {
+		// Shrink: the highest ordinals are removed. Hold the partition at the new
+		// count so surviving pods are never rolled by the size change.
+		if sts.Spec.Template.Annotations == nil {
+			sts.Spec.Template.Annotations = map[string]string{}
+		}
+		sts.Spec.Template.Annotations[leaderworkerset.SizeAnnotationKey] = strconv.Itoa(int(size))
+		sts.Spec.UpdateStrategy = appsv1.StatefulSetUpdateStrategy{
+			Type:          appsv1.RollingUpdateStatefulSetStrategyType,
+			RollingUpdate: &appsv1.RollingUpdateStatefulSetStrategy{Partition: &want},
+		}
+		sts.Spec.Replicas = &want
+		return r.Patch(ctx, sts, patch)
+	}
 	if sts.Spec.Template.Annotations == nil {
 		sts.Spec.Template.Annotations = map[string]string{}
 	}
